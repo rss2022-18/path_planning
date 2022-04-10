@@ -20,14 +20,16 @@ class PathPlan(object):
         self.traj_pub = rospy.Publisher("/trajectory/current", PoseArray, queue_size=10)
         self.odom_sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb)
 
+        self.starting_pose = None
+        self.goal_pose = None
 
     def map_cb(self, msg):
         pass ## REMOVE AND FILL IN ##
 
-
     def odom_cb(self, msg):
-        pass ## REMOVE AND FILL IN ##
-
+        #pose contains a Point (position) and Quaternion (orientation)
+        pose = msg.pose.pose
+        self.starting_pose = 
 
     def goal_cb(self, msg):
         pass ## REMOVE AND FILL IN ##
