@@ -18,8 +18,8 @@ class PurePursuit(object):
     """
     def __init__(self):
         self.odom_topic       = rospy.get_param("~odom_topic")
-        self.lookahead        = 2.0
-        self.speed            = 1.0# FILL IN #
+        self.lookahead        = 2.5
+        self.speed            = 3.0 #1.0# FILL IN #
         #self.wrap             = 5# 5FILL IN # UNECCESSARY
         self.wheelbase_length = 0.35# FILL IN #
         self.trajectory  = utils.LineTrajectory("/followed_trajectory")
@@ -69,26 +69,45 @@ class PurePursuit(object):
             P1 = waypoints[i]
             V  = waypoints[i+1]
 
-            a = np.dot(V,V)
-            b = 2*np.dot(V, P1-Q)
-            c = np.dot(P1, P1) + np.dot(Q,Q) - 2*np.dot(P1,Q) - r**2
+            (x1,y1) = ((P1[0] - Q[0]),(P1[1]- Q[1]))
+            (x2,y2) = ((V[0] - Q[0]),(V[1]- Q[1]))
+            dx, dy  = float(x2-x1), float(y2 - y1)
 
-            disc = b**2 - 4*a*c
+            dr = (dx**2 + dy**2)**(0.5)
+            capD = x1*y2 - x2*y1
+            disc = r**2*dr**2 - capD**2
+
+            # a = np.dot(V,V)
+            # b = 2*np.dot(V, P1-Q)
+            # c = np.dot(P1, P1) + np.dot(Q,Q) - 2*np.dot(P1,Q) - r**2
+
+            # disc = b**2 - 4*a*c
 
             print("Discriminant Value " + str(disc))
 
             if disc<0:
                 continue
 
-            sqrt_disc = np.sqrt(disc)
-            t1 = (-b + sqrt_disc) / (2.0 * a)
-            t2 = (-b - sqrt_disc) / (2.0 * a)
 
-            if t1<1 and t1>0:
-                intersect_pts.append(P1 + t1*(V-P1))
+            intersections = [( Q[0] + (capD*dy + sign*(-1 if dy<0 else 1)*dx*disc**0.5)/(dr**2), 
+                               Q[1] + (-capD*dx+ sign*abs(dy)*disc**0.5)/(dr**2) ) 
+                               for sign in ( (1,-1) if dy<0 else(-1,1) ) ] # collaborated w another team for this
+            
+            frac_along_segment = [(xi - P1[0])/dx if abs(dx)>abs(dy) else (yi - P1[1])/dy for xi,yi in intersections] # collaborated w another team for this
+            intersect_pts = [pt for pt, frac in zip(intersections, frac_along_segment) if 0<= frac <= 1]
 
-            elif t2<1 and t2>0:
-                intersect_pts.append(P1 + t2*(V-P1))
+            
+
+
+            # sqrt_disc = np.sqrt(disc)
+            # t1 = (-b + sqrt_disc) / (2.0 * a)
+            # t2 = (-b - sqrt_disc) / (2.0 * a)
+
+            # if t1<1 and t1>0:
+            #     intersect_pts.append(P1 + t1*(V-P1))
+
+            # elif t2<1 and t2>0:
+            #     intersect_pts.append(P1 + t2*(V-P1))
 
             # if not(0 <= t1 <= 1 or 0<=t2<=1):
             #     continue
@@ -97,14 +116,19 @@ class PurePursuit(object):
             #     intersect_pts.append(P1 + t2*(V-P1))
 
         
+            if len(intersect_pts) == 0:
+                continue
+        
+            else:
+                #return intersect_pts[0] # return the most recently added one
+                break
+
+
         if len(intersect_pts) == 0:
             return []
-        
-        else:
-            return intersect_pts[-1] # return the most recently added one
-
-
-        print('wtf point')
+        else:    
+            return intersect_pts[0] 
+        #print('wtf point')
 
     def controller_cb(self, goal_pt):
         # Goal point is given in global coordinates.
@@ -126,15 +150,17 @@ class PurePursuit(object):
         self.drive_pub.publish(drive_cmd)
 
         
-        print("hiiiiii how are you")
+        
 
     def odometry_cb(self, odometry_data):
         my_x = odometry_data.pose.pose.position.x
         my_y = odometry_data.pose.pose.position.y
         my_th= self.quat_to_yaw(odometry_data.pose.pose.orientation)
 
-        rotation_matrix = tf.transformations.quaternion_matrix((odometry_data.pose.pose.orientation.x, odometry_data.pose.pose.orientation.y, odometry_data.pose.pose.orientation.z, odometry_data.pose.pose.orientation.w))
-        translation_matrix = tf.transformations.translation_matrix((odometry_data.pose.pose.position.x, odometry_data.pose.pose.position.y, odometry_data.pose.pose.position.z))
+        rotation_matrix = tf.transformations.quaternion_matrix((odometry_data.pose.pose.orientation.x, odometry_data.pose.pose.orientation.y, 
+                                                                odometry_data.pose.pose.orientation.z, odometry_data.pose.pose.orientation.w))
+        translation_matrix = tf.transformations.translation_matrix((odometry_data.pose.pose.position.x, odometry_data.pose.pose.position.y, 
+                                                                    odometry_data.pose.pose.position.z))
 
         transform_matrix = np.linalg.inv(np.matmul(translation_matrix, rotation_matrix))
 
@@ -164,6 +190,8 @@ class PurePursuit(object):
 
         relative_goal = np.matmul(transform_matrix, np.transpose( np.array([goal_pt[0], goal_pt[1],0,1]) )  )
 
+        print("Relative Goal" + str(relative_goal))
+
         self.controller_cb(relative_goal) # goal pt is given in global coordiantes
 
 
@@ -192,8 +220,8 @@ class VisualizeGoal:
         self.line = Marker()
         self.line.type = Marker.POINTS
         self.line.header.frame_id = "/map"
-        self.line.scale.x = 3
-        self.line.scale.y = 3
+        self.line.scale.x = 1
+        self.line.scale.y = 1
         self.line.color.a = 1.
         self.line.color.r = 1
         self.line.color.g = 0
