@@ -49,21 +49,27 @@ class RRT:
         
         self.start = self.Node(start[0],start[1])
         self.end = self.Node(goal[0],goal[1])
-        self.min_rand = rand_area[0]
-        self.max_rand = rand_area[1]
+        self.width = rand_area[0]
+        self.height = rand_area[1]
         self.node_list = [] 
         self.max_iter = 500
         self.occupancy_grid = occupancy_grid
         self.goal_sample_rate = goal_sample_rate
         self.path_resolution = path_resolution
 
+    def get_index(self, point):
+        """
+        Returns the index of the point in the map
+        """
+        return int(point[0] + point[1] * self.map.info.width)
+
     def get_random_node(self):
         if random.randint(0,100) > self.goal_sample_rate:
             not_a_collision = True
             # while not_a_collision:
             rnd = self.Node(
-                math.floor(random.uniform(self.min_rand, self.max_rand)),
-                math.floor(random.uniform(self.min_rand, self.max_rand)))
+                math.floor(random.uniform(0, self.height)),
+                math.floor(random.uniform(0, self.width)))
                 # if self.occupancy_grid[rnd.x,rnd.y] != 1:
                 #     print("COLLISION DETECTED AT",rnd.x,rnd.y)
                 #     not_a_collision = False
@@ -96,11 +102,11 @@ class RRT:
             print("Steps in x and y", step_x,step_y)
             print("Theta",theta)
             # print([int(x_start+step_x),int(y_start+step_y)])
-            if self.occupancy_grid[int(x_start+step_x),int(y_start+step_y)] == 1:  ## CHANGE 1 TO OCCUPANCY GRID PERCENT!
+            ind = self.get_index((int(x_start+step_x),int(y_start+step_y)))
+            if self.occupancy_grid[ind]:  ## CHANGE 1 TO OCCUPANCY GRID PERCENT!
                 return False
             else:
                 print("Current pos",[int(x_start+step_x),int(y_start+step_y)] ,"End: ",[end.x,end.y])
-                og_shape = self.occupancy_grid.shape
                 if int(x_start+step_x)==int(end.x) and int(y_start+step_y) == int(end.y):
                     conti = False
                 x_start += step_x if int(x_start+step_x)!=int(end.x) else 0
