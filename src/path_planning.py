@@ -99,26 +99,26 @@ class PathPlan(object):
         """
         Converts a pixel in the map to a point in the map by rotating the pixel and dividing by resolution
         """
-        return Point(pixel[0] / self.map.info.resolution - self.map.info.origin.position.x,
-                     pixel[1] / self.map.info.resolution - self.map.info.origin.position.y)
+        return self.rotate_point(Point(pixel[0] / self.map.info.resolution - self.map.info.origin.position.x,
+                                 pixel[1] / self.map.info.resolution - self.map.info.origin.position.y)), self.map.info.origin.orientation)
 
     def rotate_point(self, point, quat):
         """
         Rotates a point by quaternion
         """
-        rotation_matrix = quaternion_matrix([quat.x, quat.y, quat.z, quat.w])
-        rotated_point = np.dot(rotation_matrix, [point.x, point.y, point.z, 1])
+        rotation_matrix=quaternion_matrix([quat.x, quat.y, quat.z, quat.w])
+        rotated_point=np.dot(rotation_matrix, [point.x, point.y, 0, 1])
         return Point(rotated_point[0], rotated_point[1])
 
     def calc_headings(self, path):
-        """ 
-        Given a series of waypoints, calculates headings that lead to a smooth path 
         """
-        headings = []
+        Given a series of waypoints, calculates headings that lead to a smooth path
+        """
+        headings=[]
         for i in range(len(path) - 1):
-            start_point = path[i]
-            end_point = path[i + 1]
-            heading = np.arctan2(
+            start_point=path[i]
+            end_point=path[i + 1]
+            heading=np.arctan2(
                 end_point[1] - start_point[1], end_point[0] - start_point[0])
             headings.append(heading)
         return headings
@@ -140,7 +140,7 @@ class PathPlan(object):
             for j in range(-1, 2):
                 if i == 0 and j == 0:
                     continue
-                new_point = (point[0] + i, point[1] + j)
+                new_point=(point[0] + i, point[1] + j)
                 if self.is_valid_point(new_point):
                     yield new_point
 
@@ -165,5 +165,5 @@ class PathPlan(object):
 
 if __name__ == "__main__":
     rospy.init_node("path_planning")
-    pf = PathPlan()
+    pf=PathPlan()
     rospy.spin()
