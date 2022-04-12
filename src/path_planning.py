@@ -33,10 +33,7 @@ class PathPlan(object):
         self.pose = None
 
     def init_pose(self, msg):
-        # print(msg.pose)
         self.pose = msg.pose.pose
-        self.grid_position = (int(self.pose.position.x),
-                              int(self.pose.position.y))
 
     def map_cb(self, msg):
         self.map = msg
