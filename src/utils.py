@@ -16,8 +16,10 @@ EPSILON = 0.00000000001
 ''' These data structures can be used in the search function
 '''
 
+
 class LineTrajectory(object):
     """ A class to wrap and work with piecewise linear trajectories. """
+
     def __init__(self, viz_namespace=None):
         self.points = []
         self.distances = []
@@ -27,23 +29,27 @@ class LineTrajectory(object):
 
         if viz_namespace:
             self.visualize = True
-            self.start_pub = rospy.Publisher(viz_namespace + "/start_point", Marker, queue_size = 1)
-            self.traj_pub  = rospy.Publisher(viz_namespace + "/path", Marker, queue_size = 1)
-            self.end_pub   = rospy.Publisher(viz_namespace + "/end_pose", Marker, queue_size = 1)
+            self.start_pub = rospy.Publisher(
+                viz_namespace + "/start_point", Marker, queue_size=1)
+            self.traj_pub = rospy.Publisher(
+                viz_namespace + "/path", Marker, queue_size=1)
+            self.end_pub = rospy.Publisher(
+                viz_namespace + "/end_pose", Marker, queue_size=1)
 
     # compute the distances along the path for all path segments beyond those already computed
     def update_distances(self):
         num_distances = len(self.distances)
         num_points = len(self.points)
 
-        for i in xrange(num_distances,num_points):
+        for i in xrange(num_distances, num_points):
             if i == 0:
                 self.distances.append(0)
             else:
                 p0 = self.points[i-1]
                 p1 = self.points[i]
-                delta = np.array([p0[0]-p1[0],p0[1]-p1[1]])
-                self.distances.append(self.distances[i-1] + np.linalg.norm(delta))
+                delta = np.array([p0[0]-p1[0], p0[1]-p1[1]])
+                self.distances.append(
+                    self.distances[i-1] + np.linalg.norm(delta))
 
     def distance_to_end(self, t):
         if not len(self.points) == len(self.distances):
@@ -59,8 +65,8 @@ class LineTrajectory(object):
         # ensure path boundaries are respected
         if t < 0 or t > len(self.points) - 1.0:
             return None
-        i = int(t) # which segment
-        t = t % 1.0 # how far along segment
+        i = int(t)  # which segment
+        t = t % 1.0  # how far along segment
         if t < EPSILON:
             return self.distances[i]
         else:
@@ -126,13 +132,13 @@ class LineTrajectory(object):
 
     def publish_start_point(self, duration=0.0, scale=0.1):
         should_publish = len(self.points) > 0
-        if self.visualize and self.start_pub.get_num_connections() > 0:
+        if self.visualize and self.start_pub.get_num_connections() > -1:
             print "Publishing start point"
             marker = Marker()
             marker.header = self.make_header("/map")
             marker.ns = self.viz_namespace + "/trajectory"
             marker.id = 0
-            marker.type = 2 # sphere
+            marker.type = 2  # sphere
             marker.lifetime = rospy.Duration.from_sec(duration)
             if should_publish:
                 marker.action = 0
@@ -156,13 +162,13 @@ class LineTrajectory(object):
 
     def publish_end_point(self, duration=0.0):
         should_publish = len(self.points) > 1
-        if self.visualize and self.end_pub.get_num_connections() > 0:
+        if self.visualize and self.end_pub.get_num_connections() > -1:
             print "Publishing end point"
             marker = Marker()
             marker.header = self.make_header("/map")
             marker.ns = self.viz_namespace + "/trajectory"
             marker.id = 1
-            marker.type = 2 # sphere
+            marker.type = 2  # sphere
             marker.lifetime = rospy.Duration.from_sec(duration)
             if should_publish:
                 marker.action = 0
@@ -186,13 +192,13 @@ class LineTrajectory(object):
 
     def publish_trajectory(self, duration=0.0):
         should_publish = len(self.points) > 1
-        if self.visualize and self.traj_pub.get_num_connections() > 0:
+        if self.visualize and self.traj_pub.get_num_connections() > -1:
             print "Publishing trajectory"
             marker = Marker()
             marker.header = self.make_header("/map")
             marker.ns = self.viz_namespace + "/trajectory"
             marker.id = 2
-            marker.type = marker.LINE_STRIP # line strip
+            marker.type = marker.LINE_STRIP  # line strip
             marker.lifetime = rospy.Duration.from_sec(duration)
             if should_publish:
                 marker.action = marker.ADD
@@ -212,7 +218,7 @@ class LineTrajectory(object):
                 marker.action = marker.DELETE
             self.traj_pub.publish(marker)
             print('publishing traj')
-        elif self.traj_pub.get_num_connections() == 0:
+        elif self.traj_pub.get_num_connections() == -1:
             print "Not publishing trajectory, no subscribers"
 
     def publish_viz(self, duration=0):
