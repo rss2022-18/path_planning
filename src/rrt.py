@@ -77,7 +77,7 @@ class RRT:
     def check_collisions_improved(self,start,end):
         if (start.x,start.y) == (end.x,end.y):
             return True
-        step_size_movement = 0.2  #This is how far we move in x and y on every step
+        step_size_movement = 0.7  #This is how far we move in x and y on every step
         path_list = []
         d,theta = self.calc_distance_and_angle(start, end)
         print("Theta between",(start.x,start.y),"and ",(end.x,end.y),"is",theta)
@@ -98,8 +98,8 @@ class RRT:
                 og_shape = self.occupancy_grid.shape
                 if int(x_start+step_x)==int(end.x) and int(y_start+step_y) == int(end.y):
                     conti = False
-                x_start += step_x
-                y_start += step_y
+                x_start += step_x if int(x_start+step_x)!=int(end.x) else 0
+                y_start += step_y if int(y_start+step_y) != int(end.y) else 0
                 
         return True
 
@@ -209,8 +209,8 @@ start = [0,0]
 goal =  [8,8]
 iter_counter = 0
 
-# rrt = RRT(start=[0, 0],  goal=[8, 8 ], rand_area = [0,9],occupancy_grid = occupancy_grid_ex, obstacle_list = obstacle_l,path_resolution = 1)
-rrt = RRT(start=[0, 0],  goal=[7, 22 ], rand_area = [0,24],occupancy_grid = occupancy_grid_ex_2, obstacle_list = obstacle_l,path_resolution = 2)
+# rrt = RRT(start=[0, 0],  goal=[8, 8 ], rand_area = [0,9],occupancy_grid = occupancy_grid_ex, obstacle_list = obstacle_l,path_resolution = 2)
+rrt = RRT(start=[0, 0],  goal=[7, 22 ], rand_area = [0,24],occupancy_grid = occupancy_grid_ex_2, obstacle_list = obstacle_l,path_resolution = 3)
 
 path = rrt.planning()
 print(path)
