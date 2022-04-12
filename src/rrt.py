@@ -59,9 +59,14 @@ class RRT:
 
     def get_random_node(self):
         if random.randint(0,100) > self.goal_sample_rate:
+            not_a_collision = True
+            # while not_a_collision:
             rnd = self.Node(
                 math.floor(random.uniform(self.min_rand, self.max_rand)),
                 math.floor(random.uniform(self.min_rand, self.max_rand)))
+                # if self.occupancy_grid[rnd.x,rnd.y] != 1:
+                #     print("COLLISION DETECTED AT",rnd.x,rnd.y)
+                #     not_a_collision = False
         else:
             rnd = self.Node(self.end.x, self.end.y)
 
