@@ -77,7 +77,7 @@ class RRT:
     def check_collisions_improved(self,start,end):
         if (start.x,start.y) == (end.x,end.y):
             return True
-        step_size_movement = 1  #This is how far we move in x and y on every step
+        step_size_movement = 0.2  #This is how far we move in x and y on every step
         path_list = []
         d,theta = self.calc_distance_and_angle(start, end)
         print("Theta between",(start.x,start.y),"and ",(end.x,end.y),"is",theta)
@@ -137,6 +137,7 @@ class RRT:
             print('Nearest Node',nearest_node.x,nearest_node.y)
 
             new_node = self.steer(nearest_node, rnd_node)
+            print("New next target node",(new_node.x,new_node.y))
             
             if self.check_collisions_improved(nearest_node, new_node): # Deleted self.check_if_outside_play_area(new_node, self.play_area)
                 self.node_list.append(new_node)
@@ -149,12 +150,12 @@ class RRT:
     def steer(self, from_node, to_node):
         new_node = self.Node(from_node.x, from_node.y)
         d, theta = self.calc_distance_and_angle(new_node, to_node)
-        print("Distance d:",d)
+        print("Distance d:",d,"and theta",theta)
         if self.path_resolution < d:
             # ratio = self.path_resolution/d
             new_node.x += math.floor(self.path_resolution * math.cos(theta)) ## DELETED MATH FLOOR. SIZES <1 GET CONVERTED INTO 0
-            new_node.y += math.floor(self.path_resolution * math.sin(theta))
-            print("X and Y:",new_node.x,new_node.y)
+            new_node.y += math.floor(self.path_resolution* math.sin(theta))
+            print("X and Y:",new_node.x,new_node.y,"with path resolution",self.path_resolution)
         else:
             new_node.x = to_node.x
             new_node.y = to_node.y
@@ -208,8 +209,8 @@ start = [0,0]
 goal =  [8,8]
 iter_counter = 0
 
-rrt = RRT(start=[0, 0],  goal=[8, 8 ], rand_area = [0,9],occupancy_grid = occupancy_grid_ex, obstacle_list = obstacle_l,path_resolution = 1)
-# rrt = RRT(start=[0, 0],  goal=[7, 22 ], rand_area = [0,24],occupancy_grid = occupancy_grid_ex_2, obstacle_list = obstacle_l,path_resolution = 1)
+# rrt = RRT(start=[0, 0],  goal=[8, 8 ], rand_area = [0,9],occupancy_grid = occupancy_grid_ex, obstacle_list = obstacle_l,path_resolution = 1)
+rrt = RRT(start=[0, 0],  goal=[7, 22 ], rand_area = [0,24],occupancy_grid = occupancy_grid_ex_2, obstacle_list = obstacle_l,path_resolution = 2)
 
 path = rrt.planning()
 print(path)
