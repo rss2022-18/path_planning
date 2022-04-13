@@ -110,7 +110,7 @@ class RRTPlanner(Planner):
             self.ymin = float(area[2])
             self.ymax = float(area[3])
 
-    def __init__(self, map, height, width, obstacle_threshold, path_resolution=1, goal_sample_rate=5):
+    def __init__(self, map, height, width, obstacle_threshold, path_resolution=10, goal_sample_rate=5):
         """
         start:Start Position [x,y]
         goal:Goal Position [x,y]
@@ -124,9 +124,6 @@ class RRTPlanner(Planner):
         self.occupancy_grid = map
 
     def get_index(self, point):
-        """
-        Returns the index of the point in the map
-        """
         return int(point[0] + point[1] * self.width)
 
     def get_random_node(self):
@@ -149,7 +146,7 @@ class RRTPlanner(Planner):
     def check_collisions_improved(self, start, end):
         if (start.x, start.y) == (end.x, end.y):
             return True
-        step_size_movement = 1  # This is how far we move in x and y on every step
+        step_size_movement = 10  # This is how far we move in x and y on every step
         _, theta = self.calc_distance_and_angle(start, end)
         conti = True
         x_start = start.x
@@ -158,14 +155,12 @@ class RRTPlanner(Planner):
             step_x = step_size_movement*math.cos(theta)
             step_y = step_size_movement*math.sin(theta)
             ind = self.get_index((int(x_start+step_x), int(y_start+step_y)))
-            if self.occupancy_grid[ind]:  # CHANGE 1 TO OCCUPANCY GRID PERCENT!
+            if self.occupancy_grid[ind] > 0:  # CHANGE 1 TO OCCUPANCY GRID PERCENT!
                 return False
-            else:
-                if int(x_start+step_x) == int(end.x) and int(y_start+step_y) == int(end.y):
-                    conti = False
-                x_start += step_x if int(x_start+step_x) != int(end.x) else 0
-                y_start += step_y if int(y_start+step_y) != int(end.y) else 0
-
+            if abs(int(x_start+step_x) - int(end.x)) < 10 and abs(int(y_start+step_y) - int(end.y)) < 10:
+                return True
+            x_start += step_x if int(x_start+step_x) != int(end.x) else 0
+            y_start += step_y if int(y_start+step_y) != int(end.y) else 0
         return True
 
     def calc_distance_and_angle(self, from_node, to_node):
@@ -200,9 +195,9 @@ class RRTPlanner(Planner):
             nearest_ind = self.get_nearest_node(self.node_list, rnd_node)
 
             nearest_node = self.node_list[nearest_ind]
-
+            # print('Nearest Node',nearest_node.x,nearest_node.y)
             new_node = self.steer(nearest_node, rnd_node)
-
+            # print("New next target node",(new_node.x,new_node.y))
             # Deleted self.check_if_outside_play_area(new_node, self.play_area)
             if self.check_collisions_improved(nearest_node, new_node):
                 self.node_list.append(new_node)

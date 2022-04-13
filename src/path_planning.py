@@ -43,15 +43,17 @@ class PathPlan(object):
             print("Height", msg.info.height)
             print("Resolution", msg.info.resolution)
             self.planner = RRTPlanner(
-                msg.data, msg.info.width, msg.info.height, 1)
+                msg.data, msg.info.width, msg.info.height, 10, path_resolution=10)
         self.map = msg
         quat = self.map.info.origin.orientation
+        print(quat)
         rotation_matrix = quaternion_matrix([quat.x, quat.y, quat.z, quat.w])
         pos_vec = self.map.info.origin.position
         self.transformation_matrix = np.zeros((4, 4))
         self.transformation_matrix[0:3, 0:3] = rotation_matrix[0:3, 0:3]
-        self.transformation_matrix[0:3, 3] = [pos_vec.x, pos_vec.y, pos_vec.z]
+        self.transformation_matrix[0:3, 3] = [0,0,0]
         self.transformation_matrix[3, 3] = 1
+        print(self.transformation_matrix)
 
     def odom_cb(self, msg):
         self.curr_odom = msg.pose.pose
@@ -75,6 +77,7 @@ class PathPlan(object):
         print(path)
         for point in path:
             self.trajectory.addPoint(self.convertToPoint(point))
+            print(self.convertToPoint(point))
         # publish trajectory
         self.traj_pub.publish(self.trajectory.toPoseArray())
 
@@ -86,17 +89,19 @@ class PathPlan(object):
         Converts a point in the map to a pixel in the image
         """
         point = np.array([point.x, point.y, 0, 1])
-        point = np.dot(np.linalg.inv(self.transformation_matrix), point)
-        return (int(point[0]/self.map.info.resolution), self.map.info.height - int(point[1]/self.map.info.resolution))
+        return (int(point[0]/self.map.info.resolution), int(point[1]/self.map.info.resolution))
+
+        # point = np.dot(np.linalg.inv(self.transformation_matrix), point)
+        # return (int(point[0]/self.map.info.resolution), self.map.info.height - int(point[1]/self.map.info.resolution))
 
     def convertToPoint(self, pixel):
         """
         Converts a pixel in the map to a point in the map by rotating the pixel and dividing by resolution
         """
         point = np.array([pixel[0]*self.map.info.resolution,
-                         pixel[1]*self.map.info.resolution, 0, 1])
-        point = np.dot(self.transformation_matrix, point)
-        return Point(point[0], point[1], point[2])
+                         pixel[1]*self.map.info.resolution])
+        # point = np.dot(self.transformation_matrix, point)
+        return Point(point[0], point[1], 0)
 
     def calc_headings(self, path):
         """
