@@ -52,9 +52,9 @@ class AStarPlanner(Planner):
         """
         Checks if the point is valid
         """
-        if point[0] < 0 or point[0] >= self.map_width:
+        if point[0] < 0 or point[0] >= self.width:
             return False
-        if point[1] < 0 or point[1] >= self.map_height:
+        if point[1] < 0 or point[1] >= self.height:
             return False
         if self.map[self.get_index(point)] >= self.obstacle_threshold:
             return False
@@ -73,7 +73,7 @@ class AStarPlanner(Planner):
         """
         Returns the index of the point in the map
         """
-        return int(point[0] + point[1] * self.map_width)
+        return int(point[0] + point[1] * self.width)
 
     def euclidean_distance(self, start_point, end_point):
         """
@@ -110,19 +110,17 @@ class RRTPlanner(Planner):
             self.ymin = float(area[2])
             self.ymax = float(area[3])
 
-    def __init__(self, map, height, width, obstacle_threshold, path_resolution=0.5, goal_sample_rate=5):
+    def __init__(self, map, height, width, obstacle_threshold, path_resolution=1, goal_sample_rate=5):
         """
         start:Start Position [x,y]
         goal:Goal Position [x,y]
-        randArea:Random Sampling Area [min,max]
-        randArea could be the whole map!
         """
         super(RRTPlanner, self).__init__(
             map, height, width, obstacle_threshold)
         self.path_resolution = path_resolution
         self.goal_sample_rate = goal_sample_rate
         self.node_list = []
-        self.max_iter = 10000
+        self.max_iter = 1000
         self.occupancy_grid = map
 
     def get_index(self, point):
@@ -209,13 +207,13 @@ class RRTPlanner(Planner):
             if self.check_collisions_improved(nearest_node, new_node):
                 self.node_list.append(new_node)
 
-                if self.reached_goal(new_node):
+                if new_node.x == self.end.x and new_node.y == self.end.y:
+                    print("Found goal state!")
                     return self.generate_final_course(len(self.node_list) - 1)
-
         return None  # cannot find path
 
     def reached_goal(self, node):
-        return np.sqrt((node.x - self.end.x)**2 + (node.y - self.end.y)**2) < 10
+        return np.sqrt((node.x - self.end.x)**2 + (node.y - self.end.y)**2) < 1
 
     def steer(self, from_node, to_node):
         new_node = self.Node(from_node.x, from_node.y)
