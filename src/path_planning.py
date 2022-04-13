@@ -9,7 +9,7 @@ import rospkg
 import time
 import os
 from utils import LineTrajectory
-from a_star import AStarPlanner
+from planners import *
 from Queue import PriorityQueue
 
 
@@ -42,11 +42,16 @@ class PathPlan(object):
             print("Width", msg.info.width)
             print("Height", msg.info.height)
             print("Resolution", msg.info.resolution)
-            self.planner = AStarPlanner(
-                msg.data, msg.info.width, msg.info.height)
-            with open('./dilated_map.npy', 'wb') as f:
-                np.save(f, msg.data)
+            self.planner = RRTPlanner(
+                msg.data, msg.info.width, msg.info.height, 1)
         self.map = msg
+        quat = self.map.info.origin.orientation
+        rotation_matrix = quaternion_matrix([quat.x, quat.y, quat.z, quat.w])
+        pos_vec = self.map.info.origin.position
+        self.transformation_matrix = np.zeros((4, 4))
+        self.transformation_matrix[0:3, 0:3] = rotation_matrix[0:3, 0:3]
+        self.transformation_matrix[0:3, 3] = [pos_vec.x, pos_vec.y, pos_vec.z]
+        self.transformation_matrix[3, 3] = 1
 
     def odom_cb(self, msg):
         self.curr_odom = msg.pose.pose
@@ -57,15 +62,17 @@ class PathPlan(object):
         """
         start_point = self.convertToPixel(self.pose.position)
         end_point = self.convertToPixel(msg.pose.position)
+        print("Start Point", start_point)
+        print("End Point", end_point)
         self.plan_path(start_point, end_point, self.map)
 
     def plan_path(self, start_point, end_point, map):
         """
         A* path planning algorithm using manhattan distance as heuristic
         """
-
+        print("Searching for path")
         path = self.planner.find_path(start_point, end_point)
-        # print(path)
+        print(path)
         for point in path:
             self.trajectory.addPoint(self.convertToPoint(point))
         # publish trajectory
@@ -78,25 +85,18 @@ class PathPlan(object):
         """
         Converts a point in the map to a pixel in the image
         """
-        point = self.rotate_point(point, self.map.info.origin.orientation, -1)
-        return (int(point.x * self.map.info.resolution + self.map.info.origin.position.x),
-                int(point.y * self.map.info.resolution + self.map.info.origin.position.y))
+        point = np.array([point.x, point.y, 0, 1])
+        point = np.dot(np.linalg.inv(self.transformation_matrix), point)
+        return (int(point[0]/self.map.info.resolution), self.map.info.height - int(point[1]/self.map.info.resolution))
 
     def convertToPoint(self, pixel):
         """
         Converts a pixel in the map to a point in the map by rotating the pixel and dividing by resolution
         """
-        return self.rotate_point(Point(pixel[0] / self.map.info.resolution - self.map.info.origin.position.x,
-                                 pixel[1] / self.map.info.resolution - self.map.info.origin.position.y, 0), self.map.info.origin.orientation)
-
-    def rotate_point(self, point, quat, dir=1):
-        """
-        Rotates a point by quaternion
-        """
-        rotation_matrix = quaternion_matrix(
-            [quat.x, quat.y, quat.z, dir*quat.w])
-        rotated_point = np.dot(rotation_matrix, [point.x, point.y, point.z, 1])
-        return Point(rotated_point[0], rotated_point[1], rotated_point[2])
+        point = np.array([pixel[0]*self.map.info.resolution,
+                         pixel[1]*self.map.info.resolution, 0, 1])
+        point = np.dot(self.transformation_matrix, point)
+        return Point(point[0], point[1], point[2])
 
     def calc_headings(self, path):
         """

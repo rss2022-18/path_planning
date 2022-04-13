@@ -130,7 +130,7 @@ class LineTrajectory(object):
             traj.poses.append(pose)
         return traj
 
-    def publish_start_point(self, duration=0.0, scale=0.1):
+    def publish_start_point(self, duration=30.0, scale=0.1):
         should_publish = len(self.points) > 0
         if self.visualize and self.start_pub.get_num_connections() > -1:
             print "Publishing start point"
@@ -160,7 +160,7 @@ class LineTrajectory(object):
         # elif self.start_pub.get_num_connections() == 0:
         #   print "Not publishing start point, no subscribers"
 
-    def publish_end_point(self, duration=0.0):
+    def publish_end_point(self, duration=30.0):
         should_publish = len(self.points) > 1
         if self.visualize and self.end_pub.get_num_connections() > -1:
             print "Publishing end point"
