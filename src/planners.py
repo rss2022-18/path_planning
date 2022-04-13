@@ -120,7 +120,7 @@ class RRTPlanner(Planner):
         self.path_resolution = path_resolution
         self.goal_sample_rate = goal_sample_rate
         self.node_list = []
-        self.max_iter = 1000
+        self.max_iter = 10000
         self.occupancy_grid = map
 
     def get_index(self, point):
