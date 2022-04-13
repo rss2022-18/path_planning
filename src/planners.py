@@ -13,6 +13,9 @@ class Planner(object):
         self.width = width
         self.obstacle_threshold = obstacle_threshold
 
+    def get_index(self, point):
+        return int(point[1]), int(point[0])
+
 
 class AStarPlanner(Planner):
     def __init__(self, map, height, width, obstacle_threshold):
@@ -31,6 +34,7 @@ class AStarPlanner(Planner):
         while not open_paths.empty():
             current_point = open_paths.get()
             if current_point == end_point:
+                print("Break!")
                 break
             for next in self.get_possible_moves(current_point):
                 new_cost = cost_so_far[current_point] + \
@@ -41,8 +45,9 @@ class AStarPlanner(Planner):
                         self.euclidean_distance(next, end_point)
                     open_paths.put(next, priority)
                     came_from[next] = current_point
+        if current_point != end_point:
+            return [end_point, start_point]
         path = [current_point]
-        print(current_point)
         while path[-1] != start_point:
             path.append(came_from[path[-1]])
         path.reverse()
@@ -56,7 +61,7 @@ class AStarPlanner(Planner):
             return False
         if point[1] < 0 or point[1] >= self.height:
             return False
-        if self.map[self.get_index(point)] >= self.obstacle_threshold:
+        if self.map[self.get_index(point)] > 0:
             return False
         return True
 
@@ -68,12 +73,6 @@ class AStarPlanner(Planner):
                 new_point = (point[0] + i, point[1] + j)
                 if self.is_valid_point(new_point):
                     yield new_point
-
-    def get_index(self, point):
-        """
-        Returns the index of the point in the map
-        """
-        return int(point[0] + point[1] * self.width)
 
     def euclidean_distance(self, start_point, end_point):
         """
@@ -110,7 +109,7 @@ class RRTPlanner(Planner):
             self.ymin = float(area[2])
             self.ymax = float(area[3])
 
-    def __init__(self, map, height, width, obstacle_threshold, path_resolution=10, goal_sample_rate=5):
+    def __init__(self, map, height, width, obstacle_threshold, path_resolution=5, goal_sample_rate=5):
         """
         start:Start Position [x,y]
         goal:Goal Position [x,y]
@@ -123,8 +122,7 @@ class RRTPlanner(Planner):
         self.max_iter = 10000
         self.occupancy_grid = map
 
-    def get_index(self, point):
-        return int(point[0] + point[1] * self.width)
+        # return int(point[0] + point[1] * self.width)
 
     def get_random_node(self):
         if random.randint(0, 100) > self.goal_sample_rate:
@@ -155,7 +153,8 @@ class RRTPlanner(Planner):
             step_x = step_size_movement*math.cos(theta)
             step_y = step_size_movement*math.sin(theta)
             ind = self.get_index((int(x_start+step_x), int(y_start+step_y)))
-            if self.occupancy_grid[ind] > 0:  # CHANGE 1 TO OCCUPANCY GRID PERCENT!
+            # CHANGE 1 TO OCCUPANCY GRID PERCENT!
+            if abs(self.occupancy_grid[ind]) > 0:
                 return False
             if abs(int(x_start+step_x) - int(end.x)) < 10 and abs(int(y_start+step_y) - int(end.y)) < 10:
                 return True
