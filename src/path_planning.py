@@ -43,10 +43,10 @@ class PathPlan(object):
             print("Resolution", msg.info.resolution)
             grid = np.reshape(np.array(msg.data),
                               (msg.info.height, msg.info.width))
-            # self.planner = RRTPlanner(
-            #     grid, msg.info.width, msg.info.height, 10, path_resolution=10)
-            self.planner = AStarPlanner(
-                grid, msg.info.width, msg.info.height, 10)
+            self.planner = RRTPlanner(
+                grid, msg.info.width, msg.info.height, 1, path_resolution=5)
+            # self.planner = AStarPlanner(
+            #     grid, msg.info.width, msg.info.height, 10)
         self.map = msg
         quat = self.map.info.origin.orientation
         transform = R.from_quat([quat.x, quat.y, quat.z, quat.w])
@@ -65,8 +65,6 @@ class PathPlan(object):
         """
         start_point = self.convertToPixel(self.pose.position)
         end_point = self.convertToPixel(msg.pose.position)
-        print("Start Point", start_point)
-        print("End Point", end_point)
         self.plan_path(start_point, end_point, self.map)
 
     def plan_path(self, start_point, end_point, map):
@@ -76,10 +74,10 @@ class PathPlan(object):
         self.trajectory.clear()
         print("Searching for path")
         path = self.planner.find_path(start_point, end_point)
-        if path is not None:
-            print("Found path!")
-        else:
-            print("Did not find path :(")
+        # if path is not None:
+        #     print("Found path!")
+        # else:
+        #     print("Did not find path :(")
         for point in path:
             self.trajectory.addPoint(self.convertToPoint(point))
         # publish trajectory

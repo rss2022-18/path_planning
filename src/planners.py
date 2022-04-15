@@ -1,4 +1,5 @@
 from Queue import PriorityQueue
+import heapq
 import numpy as np
 import math
 import random
@@ -7,51 +8,15 @@ import matplotlib.pyplot as plt
 
 
 class Planner(object):
-    def __init__(self, map, height, width, obstacle_threshold):
+    def __init__(self, map, height, width, obstacle_threshold, path_resolution=1):
         self.map = map
         self.height = height
         self.width = width
         self.obstacle_threshold = obstacle_threshold
+        self.path_resolution = path_resolution
 
     def get_index(self, point):
         return int(point[1]), int(point[0])
-
-
-class AStarPlanner(Planner):
-    def __init__(self, map, height, width, obstacle_threshold):
-        super(AStarPlanner, self).__init__(
-            map, height, width, obstacle_threshold)
-
-    def find_path(self, start_point, end_point):
-        """
-        A* path planning algorithm using manhattan distance as heuristic
-        """
-        open_paths = PriorityQueue()
-        open_paths.put(start_point, 0)
-        came_from = {}
-        cost_so_far = {}
-        cost_so_far[start_point] = 0
-        while not open_paths.empty():
-            current_point = open_paths.get()
-            if current_point == end_point:
-                print("Break!")
-                break
-            for next in self.get_possible_moves(current_point):
-                new_cost = cost_so_far[current_point] + \
-                    self.euclidean_distance(current_point, next)
-                if next not in cost_so_far or new_cost < cost_so_far[next]:
-                    cost_so_far[next] = new_cost
-                    priority = new_cost + \
-                        self.euclidean_distance(next, end_point)
-                    open_paths.put(next, priority)
-                    came_from[next] = current_point
-        if current_point != end_point:
-            return [end_point, start_point]
-        path = [current_point]
-        while path[-1] != start_point:
-            path.append(came_from[path[-1]])
-        path.reverse()
-        return path
 
     def is_valid_point(self, point):
         """
@@ -64,6 +29,45 @@ class AStarPlanner(Planner):
         if self.map[self.get_index(point)] > 0:
             return False
         return True
+
+
+class AStarPlanner(Planner):
+    def __init__(self, map, height, width, obstacle_threshold, path_resolution=1):
+        super(AStarPlanner, self).__init__(
+            map, height, width, obstacle_threshold, path_resolution)
+
+    def find_path(self, start_point, end_point):
+        """
+        A* path planning algorithm using manhattan distance as heuristic
+        """
+        open_paths = [start_point]
+        costs = {start_point: 0}
+        closed_paths = set()
+        came_from = {}
+        while len(open_paths) > 0:
+            current_point = heapq.heappop(open_paths)
+            if current_point == end_point:
+                print("Break!")
+                break
+            if current_point in closed_paths:
+                continue
+            closed_paths.add(current_point)
+            for next_point in self.get_possible_moves(current_point):
+                new_cost = costs[current_point] + \
+                    self.euclidean_distance(
+                        current_point, next_point)
+                if next_point not in closed_paths and (next_point not in open_paths or new_cost < costs[next_point]):
+                    new_cost += self.euclidean_distance(next_point, end_point)
+                    costs[next_point] = new_cost
+                    came_from[next_point] = current_point
+                    heapq.heappush(open_paths, next_point)
+        if current_point != end_point:
+            return [end_point, start_point]
+        path = [current_point]
+        while path[-1] != start_point:
+            path.append(came_from[path[-1]])
+        path.reverse()
+        return path
 
     def get_possible_moves(self, point):
         for i in range(-1, 2):
