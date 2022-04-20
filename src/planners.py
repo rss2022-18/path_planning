@@ -22,9 +22,9 @@ class Planner(object):
         """
         Checks if the point is valid
         """
-        if point[0] < 0 or point[0] >= self.width:
+        if point[0] < 0 or point[0] >= self.height:
             return False
-        if point[1] < 0 or point[1] >= self.height:
+        if point[1] < 0 or point[1] >= self.width:
             return False
         if self.map[self.get_index(point)] > 0:
             return False
@@ -32,6 +32,23 @@ class Planner(object):
 
 
 class AStarPlanner(Planner):
+    class Node:
+        def __init__(self, parent=None, position=None):
+            self.parent = parent
+            self.position = position
+            self.g = 0
+            self.h = 0
+            self.f = 0
+
+        def __eq__(self, other):
+            return self.position == other.position
+
+        def __lt__(self, other):
+            return self.f < other.f
+
+        def __gt__(self, other):
+            return self.f > other.f
+
     def __init__(self, map, height, width, obstacle_threshold, path_resolution=1):
         super(AStarPlanner, self).__init__(
             map, height, width, obstacle_threshold, path_resolution)
@@ -40,43 +57,70 @@ class AStarPlanner(Planner):
         """
         A* path planning algorithm using manhattan distance as heuristic
         """
-        open_paths = [start_point]
+        start_node = self.Node(None, start_point)
+        open_paths = [start_node]
         costs = {start_point: 0}
         closed_paths = set()
-        came_from = {}
         while len(open_paths) > 0:
-            current_point = heapq.heappop(open_paths)
-            if current_point == end_point:
+            current_node = heapq.heappop(open_paths)
+            if current_node.position == end_point:
                 print("Break!")
                 break
-            if current_point in closed_paths:
+            if current_node.position in closed_paths:
                 continue
-            closed_paths.add(current_point)
-            for next_point in self.get_possible_moves(current_point):
-                new_cost = costs[current_point] + \
-                    self.euclidean_distance(
-                        current_point, next_point)
-                if next_point not in closed_paths and (next_point not in open_paths or new_cost < costs[next_point]):
-                    new_cost += self.euclidean_distance(next_point, end_point)
-                    costs[next_point] = new_cost
-                    came_from[next_point] = current_point
-                    heapq.heappush(open_paths, next_point)
-        if current_point != end_point:
+            closed_paths.add(current_node.position)
+            for next_point in self.get_possible_moves(current_node.position):
+                next_node = self.Node(current_node, next_point)
+                next_node.g = current_node.g + \
+                    self.euclidean_distance(current_node.position, next_point)
+                next_node.h = self.euclidean_distance(next_point, end_point)
+                next_node.f = next_node.g + next_node.h
+
+                if next_point not in closed_paths and (next_node not in open_paths or costs[next_point] > next_node.f):
+                    heapq.heappush(open_paths, next_node)
+                    costs[next_point] = next_node.f
+
+        if current_node.position != end_point:
+            print("Failed to find path!")
+            print("Last node evaluated:", current_node.position)
             return [end_point, start_point]
-        path = [current_point]
+        path = [current_node.position]
         while path[-1] != start_point:
-            path.append(came_from[path[-1]])
+            path.append(current_node.parent.position)
+            current_node = current_node.parent
         path.reverse()
         return path
 
     def get_possible_moves(self, point):
+        moves = []
         for i in range(-1, 2):
             for j in range(-1, 2):
                 if i == 0 and j == 0:
                     continue
                 new_point = (point[0] + i, point[1] + j)
                 if self.is_valid_point(new_point):
-                    yield new_point
+                    moves.append(new_point)
+        return moves
+
+    def is_valid_path(self, point, i, j):
+        if i == 0:
+            i = self.path_resolution*[0]
+        else:
+            if i > 0:
+                i = list(range(i))
+            else:
+                i = list(range(i, 0))
+        if j == 0:
+            j = self.path_resolution*[0]
+        else:
+            if j > 0:
+                j = list(range(j))
+            else:
+                j = list(range(j, 0))
+        for x, y in zip(i, j):
+            if not self.is_valid_point((point[0] + x, point[1] + y)):
+                return False
+        return True
 
     def euclidean_distance(self, start_point, end_point):
         """
@@ -148,7 +192,8 @@ class RRTPlanner(Planner):
     def check_collisions_improved(self, start, end):
         if (start.x, start.y) == (end.x, end.y):
             return True
-        step_size_movement = 10  # This is how far we move in x and y on every step
+        # This is how far we move in x and y on every step
+        step_size_movement = self.path_resolution
         _, theta = self.calc_distance_and_angle(start, end)
         conti = True
         x_start = start.x
@@ -157,6 +202,8 @@ class RRTPlanner(Planner):
             step_x = step_size_movement*math.cos(theta)
             step_y = step_size_movement*math.sin(theta)
             ind = self.get_index((int(x_start+step_x), int(y_start+step_y)))
+            # if not self.is_valid_point(ind):
+            #     return False
             # CHANGE 1 TO OCCUPANCY GRID PERCENT!
             if abs(self.occupancy_grid[ind]) > 0:
                 return False

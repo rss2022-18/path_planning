@@ -20,37 +20,46 @@ from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 from lab6.msg import error_msg
 
+
 class PurePursuit(object):
     """ Implements Pure Pursuit trajectory tracking with a fixed lookahead and speed.
     """
+
     def __init__(self):
-        self.odom_topic       = rospy.get_param("~odom_topic")
-        self.lookahead        = 2.5
-        self.speed          = [0.0,2.5,5.0]#2.5 #1.0# FILL IN #
-        #self.wrap             = 5# 5FILL IN # UNECCESSARY
-        self.wheelbase_length = 0.35# FILL IN #
-        self.trajectory  = utils.LineTrajectory("/followed_trajectory")
-        self.traj_sub = rospy.Subscriber("/trajectory/current", PoseArray, self.trajectory_callback, queue_size=1)
+        self.odom_topic = rospy.get_param("~odom_topic")
+        self.lookahead = .25
+        self.speed = [0.0, 1, 5.0]  # 2.5 #1.0# FILL IN #
+        # self.wrap             = 5# 5FILL IN # UNECCESSARY
+        self.wheelbase_length = 0.35  # FILL IN #
+        self.trajectory = utils.LineTrajectory("/followed_trajectory")
+        self.traj_sub = rospy.Subscriber(
+            "/trajectory/current", PoseArray, self.trajectory_callback, queue_size=1)
 
-        self.wall_follow_ang = rospy.Subscriber("/wall_follow_ang", Float32,self.wall_follow_cb, queue_size=1)
+        self.wall_follow_ang = rospy.Subscriber(
+            "/wall_follow_ang", Float32, self.wall_follow_cb, queue_size=1)
         self.wall_ang_cmd = 0.0
-        self.drive_pub = rospy.Publisher("/drive", AckermannDriveStamped, queue_size=1)
+        self.drive_pub = rospy.Publisher(
+            "/drive", AckermannDriveStamped, queue_size=1)
 
+        self.error_pub = rospy.Publisher(
+            "/waypoint_error", error_msg, queue_size=10)
 
-        self.error_pub = rospy.Publisher("/waypoint_error", error_msg,queue_size=10)
-        
-        self.waypoint_dist= rospy.Publisher("/nearest_waypoint", Float32, queue_size=10)
-        self.distance_to_line = rospy.Publisher("/distance_to_path", Float32, queue_size=10)
-        #Subscribe to my localizer to get my x,y, position
-        self.localize_sub = rospy.Subscriber("/pf/pose/odom", Odometry, self.odometry_cb, queue_size=10)
-        
+        self.waypoint_dist = rospy.Publisher(
+            "/nearest_waypoint", Float32, queue_size=10)
+        self.distance_to_line = rospy.Publisher(
+            "/distance_to_path", Float32, queue_size=10)
+        # Subscribe to my localizer to get my x,y, position
+        self.localize_sub = rospy.Subscriber(
+            "/pf/pose/odom", Odometry, self.odometry_cb, queue_size=10)
 
-        self.state = [0,0,0] # originally set to origin. fix on first cb
+        self.state = [0, 0, 0]  # originally set to origin. fix on first cb
 
-        self.visualize_pub = rospy.Publisher("/goal_point", Marker, queue_size = 1)
-        self.visualize_goal =VisualizeGoal()
+        self.visualize_pub = rospy.Publisher(
+            "/goal_point", Marker, queue_size=1)
+        self.visualize_goal = VisualizeGoal()
 
-        self.visualize_waypoint_pub = rospy.Publisher("/follower_waypoint", Marker, queue_size = 1)
+        self.visualize_waypoint_pub = rospy.Publisher(
+            "/follower_waypoint", Marker, queue_size=1)
         self.visualize_waypoint = VisualizeGoal()
 
         self.transform_matrix = []
@@ -68,19 +77,15 @@ class PurePursuit(object):
 
         print(self.trajectory.points)
 
-
     def wall_follow_cb(self, ang_data):
         self.wall_ang_cmd = ang_data.data
-
-
 
     def determine_follow_point(self, waypoints):
         car_x = self.state[0]
         car_y = self.state[1]
-        car_pos= np.array([car_x, car_y])
+        car_pos = np.array([car_x, car_y])
 
         d_waypoints = np.ones(len(waypoints-1))*9e9
-
 
         # find closest distances to all waypoints SEGMENTS
         for i in range(len(waypoints)-1):
@@ -88,8 +93,9 @@ class PurePursuit(object):
             W = waypoints[i+1]
 
             l2 = np.linalg.norm(V-W)**2
-            t  = ( (car_pos[0]-V[0])*(W[0]-V[0]) + (car_pos[1]-V[1])*(W[1]-V[1]) )/l2
-            t= np.max((0, np.min((1,t))))
+            t = ((car_pos[0]-V[0])*(W[0]-V[0]) +
+                 (car_pos[1]-V[1])*(W[1]-V[1]))/l2
+            t = np.max((0, np.min((1, t))))
             closest_point = np.array([V[0]+t*(W[0]-V[0]), V[1]+t*(W[1]-V[1])])
             d_waypoints[i] = np.linalg.norm(car_pos - closest_point)
 
@@ -105,11 +111,10 @@ class PurePursuit(object):
             fwd_waypoint = waypoints[min_idx+1]
             print(fwd_waypoint)
             print([car_x, car_y])
-            self.distance_to_closest = ((fwd_waypoint[0]-car_x)**2 + (fwd_waypoint[1]-car_y)**2)**0.5
+            self.distance_to_closest = (
+                (fwd_waypoint[0]-car_x)**2 + (fwd_waypoint[1]-car_y)**2)**0.5
             print(self.distance_to_closest)
             self.waypoint_dist.publish(self.distance_to_closest)
-
-        
 
         self.visualize_waypoint.draw(min_waypoint)
         self.visualize_waypoint_pub.publish(self.visualize_waypoint.line)
@@ -117,15 +122,16 @@ class PurePursuit(object):
         # Find the goal point
         intersections = []
         Q = [car_x, car_y]
-        r = max(0.5, self.speed[self.gear]*0.5) #self.lookahead # max(0.5, self.speed*0.5) # a dynamic self lookahaed distance
+        # self.lookahead # max(0.5, self.speed*0.5) # a dynamic self lookahaed distance
+        r = max(0.5, self.speed[self.gear]*0.5)
 
         for i in range(min_idx, len(waypoints)-1):
             P1 = waypoints[i]
-            V  = waypoints[i+1] - P1
+            V = waypoints[i+1] - P1
 
-            a = np.dot(V,V)
+            a = np.dot(V, V)
             b = 2*np.dot(V, P1-Q)
-            c = np.dot(P1, P1) + np.dot(Q,Q) -2*np.dot(P1, Q) - r**2
+            c = np.dot(P1, P1) + np.dot(Q, Q) - 2*np.dot(P1, Q) - r**2
 
             discriminant = b**2 - 4*a*c
 
@@ -135,24 +141,23 @@ class PurePursuit(object):
             sol1 = (-b + np.sqrt(discriminant)) / (2.0*a)
             sol2 = (-b - np.sqrt(discriminant)) / (2.0*a)
 
-            if sol1<1 and sol1>0:
+            if sol1 < 1 and sol1 > 0:
                 intersections.append(P1+sol1*V)
-            elif sol2<1 and sol2>0:
+            elif sol2 < 1 and sol2 > 0:
                 intersections.append(P1 + sol2*V)
-
 
         if len(intersections) == 0:
             goal_pt = []
         else:
-            goal_pt = intersections[-1] # this is the furthest along line waypoint
+            # this is the furthest along line waypoint
+            goal_pt = intersections[-1]
 
         return goal_pt
 
-
     def controller_cb(self, goal_pt):
         # Goal point is given in global coordinates.
-        # Need the goal in relative coordinates. 
-        angle_to_goal= np.arctan2(goal_pt[1], goal_pt[0])
+        # Need the goal in relative coordinates.
+        angle_to_goal = np.arctan2(goal_pt[1], goal_pt[0])
         L1 = np.linalg.norm(goal_pt[0:1])
         numerator = 2*L1*np.sin(angle_to_goal).real
         denominator = self.lookahead
@@ -161,7 +166,7 @@ class PurePursuit(object):
 
         drive_cmd = AckermannDriveStamped()
 
-        #TODO: Add more heuristics here
+        # TODO: Add more heuristics here
 
         # DRS Heuristic:
         # if self.distance_to_closest > 6.0:
@@ -174,14 +179,12 @@ class PurePursuit(object):
         #     drive_cmd.drive.steering_angle = delta
 
         self.gear = 1
-        drive_cmd.drive.speed = self.speed[self.gear] #5.0
+        drive_cmd.drive.speed = self.speed[self.gear]  # 5.0
         drive_cmd.drive.steering_angle = delta
-        
-        
 
         self.drive_pub.publish(drive_cmd)
 
-        #publish the error
+        # publish the error
         err_msg = error_msg()
         err_msg.x_error = goal_pt[1]
         err_msg.y_error = goal_pt[0]
@@ -189,69 +192,58 @@ class PurePursuit(object):
 
         self.error_pub.publish(err_msg)
 
-    
-
-        
-        
-
     def odometry_cb(self, odometry_data):
         my_x = odometry_data.pose.pose.position.x
         my_y = odometry_data.pose.pose.position.y
-        my_th= self.quat_to_yaw(odometry_data.pose.pose.orientation)
+        my_th = self.quat_to_yaw(odometry_data.pose.pose.orientation)
 
-        rotation_matrix = tf.transformations.quaternion_matrix((odometry_data.pose.pose.orientation.x, odometry_data.pose.pose.orientation.y, 
+        rotation_matrix = tf.transformations.quaternion_matrix((odometry_data.pose.pose.orientation.x, odometry_data.pose.pose.orientation.y,
                                                                 odometry_data.pose.pose.orientation.z, odometry_data.pose.pose.orientation.w))
-        translation_matrix = tf.transformations.translation_matrix((odometry_data.pose.pose.position.x, odometry_data.pose.pose.position.y, 
+        translation_matrix = tf.transformations.translation_matrix((odometry_data.pose.pose.position.x, odometry_data.pose.pose.position.y,
                                                                     odometry_data.pose.pose.position.z))
 
-        self.transform_matrix = np.linalg.inv(np.matmul(translation_matrix, rotation_matrix))
-
-
+        self.transform_matrix = np.linalg.inv(
+            np.matmul(translation_matrix, rotation_matrix))
 
         self.state = np.array([my_x, my_y, my_th])
 
         waypoints = np.array(self.trajectory.points)
 
-        if len(waypoints) < 3: #Three points is not enough for a trajectory!
+        if len(waypoints) < 3:  # Three points is not enough for a trajectory!
             print("No Trajectory!")
             return
-
 
         #goal_pt = self.follow_which_point(waypoints)
         goal_pt = self.determine_follow_point(waypoints)
 
-        if len(goal_pt) ==0:
-            #print("empty!")
+        if len(goal_pt) == 0:
+            # print("empty!")
             return
         else:
             #print("Follow this point!")
-            #print(goal_pt)
+            # print(goal_pt)
 
             self.visualize_goal.draw(goal_pt)
             self.visualize_pub.publish(self.visualize_goal.line)
 
-
-        relative_goal = np.matmul(self.transform_matrix, np.transpose( np.array([goal_pt[0], goal_pt[1],0,1]) )  )
+        relative_goal = np.matmul(self.transform_matrix, np.transpose(
+            np.array([goal_pt[0], goal_pt[1], 0, 1])))
 
         #print("Relative Goal" + str(relative_goal))
 
-        self.controller_cb(relative_goal) # goal pt is given in global coordiantes
+        # goal pt is given in global coordiantes
+        self.controller_cb(relative_goal)
 
-
-
-
-        #print(self.state)
+        # print(self.state)
         #print(str([my_x, my_y, my_th]))
 
-        
-
     def quat_to_yaw(self, quaternion):
-        
+
         my_quat = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
         rpy = euler_from_quaternion(my_quat)
         roll = rpy[0]
-        pitch= rpy[1]
-        yaw  = rpy[2]
+        pitch = rpy[1]
+        yaw = rpy[2]
 
         return yaw
 
@@ -259,7 +251,7 @@ class PurePursuit(object):
 class VisualizeGoal:
     def __init__(self):
 
-        # Set parameters for the published message. 
+        # Set parameters for the published message.
         self.line = Marker()
         self.line.type = Marker.POINTS
         self.line.header.frame_id = "/map"
@@ -282,18 +274,12 @@ class VisualizeGoal:
         self.line.points.append(point)
 
 
-
-    
-
-
-if __name__=="__main__":
+if __name__ == "__main__":
     rospy.init_node("pure_pursuit")
     pf = PurePursuit()
     rospy.spin()
 
-
-
-       # def distance_to_waypoint(waypoints, car):
+    # def distance_to_waypoint(waypoints, car):
     #     print('Distance to waypoint!')
 
     # def distance_to_segment(self, p1, p2, car):
@@ -324,7 +310,6 @@ if __name__=="__main__":
 
     #     return dist
 
-
     # def candidate_intersection(self, P1,V,Q,r):
     #     (x1,y1) = ((P1[0] - Q[0]),(P1[1]- Q[1]))
     #     (x2,y2) = ((V[0] - Q[0]),(V[1]- Q[1]))
@@ -337,18 +322,17 @@ if __name__=="__main__":
     #     if disc <0:
     #         return None
     #     else:
-    #         intersections = [( Q[0] + (capD*dy + sign*(-1 if dy<0 else 1)*dx*disc**0.5)/(dr**2), 
-    #                             Q[1] + (-capD*dx+ sign*abs(dy)*disc**0.5)/(dr**2) ) 
+    #         intersections = [( Q[0] + (capD*dy + sign*(-1 if dy<0 else 1)*dx*disc**0.5)/(dr**2),
+    #                             Q[1] + (-capD*dx+ sign*abs(dy)*disc**0.5)/(dr**2) )
     #                             for sign in ( (1,-1) if dy<0 else(-1,1) ) ] # collaborated w another team for this
-                
+
     #         frac_along_segment = [(xi - P1[0])/dx if abs(dx)>abs(dy) else (yi - P1[1])/dy for xi,yi in intersections] # collaborated w another team for this
     #         intersect_pts = [(pt,frac) for pt, frac in zip(intersections, frac_along_segment) if 0<= frac <= 1]
     #         return intersect_pts
 
-
     # def follow_which_point(self, waypoints):
     #     #find the distances to all waypoints:
-    #     # find waypoint closest to my car. 
+    #     # find waypoint closest to my car.
     #     #d_waypoints = np.linalg.norm(waypoints - np.tile(self.state[0:2], (len(self.trajectory.distances),1) ))
     #     d_waypoints = np.zeros(len(self.trajectory.points)-1)
 
@@ -360,7 +344,6 @@ if __name__=="__main__":
     #     #print(d_waypoints)
     #     #d_waypoints = np.linalg.norm(waypoints - np.tile)
     #     idx = np.argmin(d_waypoints)
-
 
     #     # closest_waypoint = waypoints[idx]
     #     # closest_waypoint_relative_coords = np.matmul(self.transform_matrix, np.transpose( np.array([closest_waypoint[0], closest_waypoint[1],0,1]) )  )
@@ -388,7 +371,7 @@ if __name__=="__main__":
     #     # look from the closest waypoint to the end of the trajectory.
     #     for i in range(idx, len(d_waypoints)):
     #         P1 = self.trajectory.points[i]
-    #         V  = self.trajectory.points[i+1] 
+    #         V  = self.trajectory.points[i+1]
 
     #         intersections = self.candidate_intersection(P1,V,Q,r)
     #         if intersections is not None and len(intersections) :
@@ -405,10 +388,10 @@ if __name__=="__main__":
     #                     intersections = self.candidate_intersection(self.trajectory.points[i+j], self.trajectory.points[i+j+1], Q, r)
     #                 else:
     #                     break
-                
+
     #             goal_point = max(candidate_goal, key=lambda x: x[1])[0]
     #             break
-        
+
     #         else:
     #             i = idx
     #             x1,y1 = self.trajectory.points[i]
@@ -420,24 +403,22 @@ if __name__=="__main__":
     #             a = (dy*(y3-y1) + dx*(x3-x1)) / float(det)
     #             x = [x1+a*dx, y1+a*dy]
     #             goal_point = x
-            
 
     #     return goal_point
 
-        #     if len(intersect_pts) == 0:
-        #         continue
-        #     else:
-        #         break
-        
-            
-        # print("Intersection Points")
-        # print(intersect_pts)
+    #     if len(intersect_pts) == 0:
+    #         continue
+    #     else:
+    #         break
 
-        # if len(intersect_pts) == 0:
-        #     return []
-        # else:    
-        #     if len(intersect_pts) == 1:
-        #         return intersect_pts[0]
-        #     elif len(intersect_pts) >= 2:  
-        #         return intersect_pts[1] #max(intersect_pts, key=lambda x: x[1])[0]
-        # #print('wtf point')
+    # print("Intersection Points")
+    # print(intersect_pts)
+
+    # if len(intersect_pts) == 0:
+    #     return []
+    # else:
+    #     if len(intersect_pts) == 1:
+    #         return intersect_pts[0]
+    #     elif len(intersect_pts) >= 2:
+    #         return intersect_pts[1] #max(intersect_pts, key=lambda x: x[1])[0]
+    # #print('wtf point')

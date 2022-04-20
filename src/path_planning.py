@@ -11,6 +11,8 @@ from utils import LineTrajectory
 from planners import *
 from Queue import PriorityQueue
 
+REDUCTION_FACTOR = 1
+
 
 class PathPlan(object):
     """ Listens for goal pose published by RViz and uses it to plan a path from
@@ -41,12 +43,15 @@ class PathPlan(object):
             print("Width", msg.info.width)
             print("Height", msg.info.height)
             print("Resolution", msg.info.resolution)
-            grid = np.reshape(np.array(msg.data),
-                              (msg.info.height, msg.info.width))
-            self.planner = RRTPlanner(
-                grid, msg.info.width, msg.info.height, 1, path_resolution=5)
-            # self.planner = AStarPlanner(
-            #     grid, msg.info.width, msg.info.height, 10)
+            data = np.load('dilated_map.npy')
+            grid = np.reshape(data, (1300, 1730))
+            # grid = np.reshape(np.array(msg.data),
+            #                   (msg.info.height, msg.info.width))
+
+            # self.planner = RRTPlanner(
+            #     self.reduce_map(grid), msg.info.width, msg.info.height, 1, path_resolution=REDUCTION_FACTOR)
+            self.planner = AStarPlanner(
+                grid, msg.info.width, msg.info.height, 1)
         self.map = msg
         quat = self.map.info.origin.orientation
         transform = R.from_quat([quat.x, quat.y, quat.z, quat.w])
@@ -55,6 +60,20 @@ class PathPlan(object):
         rotation_matrix = transform.as_dcm()
         self.transformation_matrix = np.vstack(
             [np.hstack([rotation_matrix, pos_vec]), np.array([0, 0, 0, 1])])
+
+    def reduce_map(self, occupancy_grid):
+        """
+        Reduces the resolution of the map by a factor of REDUCTION_FACTOR
+        """
+        if REDUCTION_FACTOR == 1:
+            return occupancy_grid
+        new_grid = np.zeros(
+            (occupancy_grid.shape[0]/REDUCTION_FACTOR, occupancy_grid.shape[1]/REDUCTION_FACTOR))
+        for i in range(occupancy_grid.shape[0]/REDUCTION_FACTOR):
+            for j in range(occupancy_grid.shape[1]/REDUCTION_FACTOR):
+                new_grid[i][j] = np.max(occupancy_grid[i*REDUCTION_FACTOR:(
+                    i+1)*REDUCTION_FACTOR, j*REDUCTION_FACTOR:(j+1)*REDUCTION_FACTOR])
+        return new_grid
 
     def odom_cb(self, msg):
         self.curr_odom = msg.pose.pose
@@ -65,6 +84,8 @@ class PathPlan(object):
         """
         start_point = self.convertToPixel(self.pose.position)
         end_point = self.convertToPixel(msg.pose.position)
+        print("Start pixel:", start_point)
+        print("End pixel:", end_point)
         self.plan_path(start_point, end_point, self.map)
 
     def plan_path(self, start_point, end_point, map):
@@ -92,14 +113,14 @@ class PathPlan(object):
         """
         point = np.array([point.x, point.y, 0, 1])
         point = np.dot(np.linalg.inv(self.transformation_matrix), point)
-        return (int(point[0]/self.map.info.resolution), int(point[1]/self.map.info.resolution))
+        return (int(point[0]/(self.map.info.resolution*REDUCTION_FACTOR)), int(point[1]/(self.map.info.resolution*REDUCTION_FACTOR)))
 
     def convertToPoint(self, pixel):
         """
         Converts a pixel in the map to a point in the map by rotating the pixel and dividing by resolution
         """
-        point = np.array([pixel[0]*self.map.info.resolution,
-                         (pixel[1])*self.map.info.resolution, 0, 1])
+        point = np.array([pixel[0]*self.map.info.resolution*REDUCTION_FACTOR,
+                         (pixel[1])*self.map.info.resolution*REDUCTION_FACTOR, 0, 1])
         point = np.dot(self.transformation_matrix, point)
         return Point(point[0], point[1], 0)
 
